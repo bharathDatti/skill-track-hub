@@ -36,12 +36,13 @@ const EnrollmentRequests = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
-  // Redirect if not tutor
-  if (user?.role !== "tutor" && user?.role !== "admin") {
-    navigate("/dashboard");
-    toast.error("You don't have permission to access this page");
-    return null;
-  }
+  // Redirect if not tutor or admin
+  useEffect(() => {
+    if (user && user.role !== "tutor" && user.role !== "admin") {
+      navigate("/dashboard");
+      toast.error("You don't have permission to access this page");
+    }
+  }, [user, navigate]);
 
   // Fetch enrollment requests
   useEffect(() => {
@@ -60,7 +61,18 @@ const EnrollmentRequests = () => {
 
         if (error) throw error;
         if (data) {
-          setEnrollments(data as EnrollmentWithDetails[]);
+          // Cast the data to the correct type to ensure TypeScript compatibility
+          const typedData = data.map(item => ({
+            ...item,
+            status: item.status as "pending" | "approved" | "rejected",
+            profiles: item.profiles as { 
+              full_name: string | null;
+              avatar_url: string | null;
+            } | null,
+            batches: item.batches
+          }));
+          
+          setEnrollments(typedData);
         }
       } catch (error) {
         console.error("Error fetching enrollment requests:", error);

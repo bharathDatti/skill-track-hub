@@ -32,6 +32,8 @@ type Enrollment = {
   student_id: string;
   status: "pending" | "approved" | "rejected";
   created_at: string;
+  approved_at?: string | null;
+  approved_by?: string | null;
 };
 
 const Batches = () => {
@@ -73,7 +75,11 @@ const Batches = () => {
           if (enrollmentsError) throw enrollmentsError;
           
           if (enrollmentsData) {
-            setEnrollments(enrollmentsData);
+            // Cast the data to ensure TypeScript compatibility
+            setEnrollments(enrollmentsData.map(e => ({
+              ...e,
+              status: e.status as "pending" | "approved" | "rejected"
+            })));
           }
         }
         
@@ -87,7 +93,11 @@ const Batches = () => {
           if (enrollmentsError) throw enrollmentsError;
           
           if (enrollmentsData) {
-            setEnrollments(enrollmentsData);
+            // Cast the data to ensure TypeScript compatibility
+            setEnrollments(enrollmentsData.map(e => ({
+              ...e,
+              status: e.status as "pending" | "approved" | "rejected"
+            })));
           }
         }
       } catch (error) {
@@ -133,7 +143,13 @@ const Batches = () => {
         .eq("student_id", user.id);
         
       if (fetchError) throw fetchError;
-      if (data) setEnrollments(data);
+      if (data) {
+        // Cast the data to ensure TypeScript compatibility
+        setEnrollments(data.map(e => ({
+          ...e,
+          status: e.status as "pending" | "approved" | "rejected"
+        })));
+      }
       
     } catch (error) {
       console.error("Error enrolling:", error);
