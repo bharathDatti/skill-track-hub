@@ -54,14 +54,14 @@ const CreateBatch = () => {
 
     try {
       setLoading(true);
-      // Ensure we're using the actual UUID from the user object, not just the id property
-      // which might not be in the proper UUID format
+      
+      // Create batch with user ID as UUID - handle null case and ensure the ID is valid
       const { error } = await supabase.from("batches").insert({
         name: data.name,
         description: data.description,
         start_date: data.start_date,
         end_date: data.end_date,
-        created_by: user.id, // Make sure this is a valid UUID
+        created_by: user.id || null, // Use null if ID is not available
       });
 
       if (error) {
