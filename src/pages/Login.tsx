@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { demoUsers } from '@/contexts/DemoDataContext';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore, UserRole } from '@/store/authStore';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -36,9 +36,18 @@ const Login = () => {
         ) as keyof typeof demoUsers | undefined;
         
         if (userKey && password === 'password') {
-          const user = demoUsers[userKey];
+          const demoUser = demoUsers[userKey];
           
-          // Simulate login
+          // Convert to proper User type with correct role typing
+          const user = {
+            id: demoUser.id,
+            name: demoUser.name,
+            email: demoUser.email,
+            role: demoUser.role as UserRole,
+            avatar: demoUser.avatar
+          };
+          
+          // Simulate login with properly typed user
           login('demo-token', user);
           navigate('/dashboard');
           toast.success('Logged in successfully');
