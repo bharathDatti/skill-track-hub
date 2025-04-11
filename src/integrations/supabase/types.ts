@@ -9,6 +9,74 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      batch_enrollments: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          batch_id: string
+          created_at: string | null
+          id: string
+          status: string
+          student_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          batch_id: string
+          created_at?: string | null
+          id?: string
+          status?: string
+          student_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          batch_id?: string
+          created_at?: string | null
+          id?: string
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_enrollments_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      batches: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          start_date: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          start_date?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          start_date?: string | null
+        }
+        Relationships: []
+      }
       modules: {
         Row: {
           created_at: string | null

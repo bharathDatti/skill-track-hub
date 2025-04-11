@@ -7,6 +7,7 @@ import {
   BookOpen, 
   Calendar, 
   CheckCircle2, 
+  GraduationCap,
   Home, 
   LayoutDashboard, 
   MessageSquare,
@@ -90,10 +91,12 @@ const Sidebar = ({ isOpen, toggleSidebar }: SidebarProps) => {
               <>
                 <NavItem to="/tasks" icon={<CheckCircle2 size={18} />} label="Tasks" />
                 <NavItem to="/students" icon={<Users size={18} />} label="Students" />
+                <NavItem to="/enrollments" icon={<GraduationCap size={18} />} label="Enrollments" />
               </>
             )}
             
             {/* Common links */}
+            <NavItem to="/batches" icon={<GraduationCap size={18} />} label="Batches" />
             <NavItem to="/roadmap" icon={<BookOpen size={18} />} label="Learning Roadmap" />
             <NavItem to="/calendar" icon={<Calendar size={18} />} label="Calendar" />
             <NavItem to="/messages" icon={<MessageSquare size={18} />} label="Messages" />
