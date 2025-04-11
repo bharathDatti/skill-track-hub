@@ -49,30 +49,42 @@ const EnrollmentRequests = () => {
     const fetchEnrollments = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        // Fix the query to use a proper join instead of trying to use a foreign key relationship
+        // Get all pending enrollments first
+        const { data: enrollmentsData, error: enrollmentsError } = await supabase
           .from("batch_enrollments")
-          .select(`
-            *,
-            profiles:student_id(full_name, avatar_url),
-            batches:batch_id(name)
-          `)
+          .select("*")
           .eq("status", "pending")
           .order("created_at", { ascending: false });
 
-        if (error) throw error;
-        if (data) {
-          // Cast the data to the correct type to ensure TypeScript compatibility
-          const typedData = data.map(item => ({
-            ...item,
-            status: item.status as "pending" | "approved" | "rejected",
-            profiles: item.profiles as { 
-              full_name: string | null;
-              avatar_url: string | null;
-            } | null,
-            batches: item.batches
+        if (enrollmentsError) throw enrollmentsError;
+        
+        if (enrollmentsData) {
+          // Now fetch related data separately for profiles and batches
+          const enhancedEnrollments = await Promise.all(enrollmentsData.map(async (enrollment) => {
+            // Get student profile
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("full_name, avatar_url")
+              .eq("id", enrollment.student_id)
+              .single();
+            
+            // Get batch details
+            const { data: batchData } = await supabase
+              .from("batches")
+              .select("name")
+              .eq("id", enrollment.batch_id)
+              .single();
+            
+            return {
+              ...enrollment,
+              status: enrollment.status as "pending" | "approved" | "rejected",
+              profiles: profileData || null,
+              batches: batchData || null
+            };
           }));
           
-          setEnrollments(typedData);
+          setEnrollments(enhancedEnrollments);
         }
       } catch (error) {
         console.error("Error fetching enrollment requests:", error);
