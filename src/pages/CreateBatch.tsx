@@ -54,15 +54,20 @@ const CreateBatch = () => {
 
     try {
       setLoading(true);
+      // Ensure we're using the actual UUID from the user object, not just the id property
+      // which might not be in the proper UUID format
       const { error } = await supabase.from("batches").insert({
         name: data.name,
         description: data.description,
         start_date: data.start_date,
         end_date: data.end_date,
-        created_by: user.id,
+        created_by: user.id, // Make sure this is a valid UUID
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error details:", error);
+        throw error;
+      }
       
       toast.success("Batch created successfully");
       navigate("/batches");
