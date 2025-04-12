@@ -18,6 +18,13 @@ import Batches from "./pages/Batches";
 import CreateBatch from "./pages/CreateBatch";
 import EnrollmentRequests from "./pages/EnrollmentRequests";
 import Profile from "./pages/Profile";
+import Calendar from "./pages/Calendar";
+import Messages from "./pages/Messages";
+import Settings from "./pages/Settings";
+import Users from "./pages/Users";
+import Statistics from "./pages/Statistics";
+import Tasks from "./pages/Tasks";
+import Students from "./pages/Students";
 
 // Private Route component
 import { useAuthStore } from "./store/authStore";

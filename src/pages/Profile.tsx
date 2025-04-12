@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { supabase } from '@/integrations/supabase/client';
 
 const Profile = () => {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
@@ -29,17 +29,16 @@ const Profile = () => {
     setLoading(true);
     try {
       const { error } = await supabase
-        .from('users')
+        .from('profiles')
         .update({
-          name,
-          avatar
+          full_name: name,
+          avatar_url: avatar
         })
-        .eq('id', user.id);
+        .eq('user_id', user.id);
         
       if (error) throw error;
       
-      // Update local user state
-      setUser({ ...user, name, avatar });
+      // Update local user state (removed setUser as it's not available)
       toast.success('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
