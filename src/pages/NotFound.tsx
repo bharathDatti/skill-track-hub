@@ -2,8 +2,17 @@
 import { ArrowLeft, Home } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const NotFound = () => {
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // Log the 404 error for analytics purposes
+    console.log('404 page not found');
+  }, []);
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
       <div className="text-center max-w-md px-4">

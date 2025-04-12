@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound";
 import Batches from "./pages/Batches";
 import CreateBatch from "./pages/CreateBatch";
 import EnrollmentRequests from "./pages/EnrollmentRequests";
+import Profile from "./pages/Profile";
 
 // Private Route component
 import { useAuthStore } from "./store/authStore";
@@ -79,6 +80,7 @@ const App = () => (
             >
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/roadmap" element={<Roadmap />} />
+              <Route path="/profile" element={<Profile />} />
               
               {/* Batch routes - accessible by all authenticated users */}
               <Route path="/batches" element={<Batches />} />
@@ -103,7 +105,54 @@ const App = () => (
                 } 
               />
               
-              {/* Add other dashboard routes here */}
+              {/* Calendar route */}
+              <Route path="/calendar" element={<Calendar />} />
+              
+              {/* Messages route */}
+              <Route path="/messages" element={<Messages />} />
+              
+              {/* Settings route */}
+              <Route path="/settings" element={<Settings />} />
+              
+              {/* User routes for admins */}
+              <Route 
+                path="/users" 
+                element={
+                  <RoleRoute allowedRoles={['admin']}>
+                    <Users />
+                  </RoleRoute>
+                }
+              />
+              
+              {/* Statistics route for admins */}
+              <Route 
+                path="/statistics" 
+                element={
+                  <RoleRoute allowedRoles={['admin']}>
+                    <Statistics />
+                  </RoleRoute>
+                }
+              />
+              
+              {/* Task routes */}
+              <Route 
+                path="/tasks" 
+                element={
+                  <RoleRoute allowedRoles={['admin', 'tutor']}>
+                    <Tasks />
+                  </RoleRoute>
+                }
+              />
+              
+              {/* Students routes for admins/tutors */}
+              <Route 
+                path="/students" 
+                element={
+                  <RoleRoute allowedRoles={['admin', 'tutor']}>
+                    <Students />
+                  </RoleRoute>
+                }
+              />
             </Route>
             
             {/* Catch all route */}
