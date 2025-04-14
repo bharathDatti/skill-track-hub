@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthStore } from '@/store/authStore';
@@ -18,13 +17,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Update the Task interface to make priority optional
 interface Task {
   id: string;
   title: string;
   description: string | null;
   status: 'todo' | 'in-progress' | 'completed';
-  priority?: 'low' | 'medium' | 'high'; // Make priority optional
+  priority?: 'low' | 'medium' | 'high';
   due_date: string;
   assigned_to?: string | null;
   assigned_by?: string | null;
@@ -44,7 +42,7 @@ const Tasks = () => {
     title: '',
     description: '',
     status: 'todo',
-    priority: 'medium', // Default priority
+    priority: 'medium',
     due_date: new Date().toISOString(),
     assigned_to: null
   });
@@ -62,7 +60,6 @@ const Tasks = () => {
       setIsLoading(true);
       let query = supabase.from('tasks').select('*');
       
-      // If user is a student, only fetch tasks assigned to them
       if (user?.role === 'student') {
         query = query.eq('assigned_to', user.id);
       }
@@ -71,9 +68,7 @@ const Tasks = () => {
       
       if (error) throw error;
       
-      // Convert types to match our interface and add default priority if missing
       const formattedTasks = data.map(task => {
-        // Create a properly typed Task object with priority defaulting to 'medium'
         const typedTask: Task = {
           id: task.id,
           title: task.title,
@@ -82,7 +77,6 @@ const Tasks = () => {
           due_date: task.due_date,
           assigned_to: task.assigned_to,
           assigned_by: task.assigned_by,
-          // Add priority with default if it doesn't exist in the database
           priority: 'medium'
         };
         
@@ -100,7 +94,6 @@ const Tasks = () => {
   
   const fetchProfiles = async () => {
     try {
-      // Fetch profiles for assignment dropdown
       if (user?.role === 'admin' || user?.role === 'tutor') {
         const { data, error } = await supabase
           .from('profiles')
@@ -127,7 +120,6 @@ const Tasks = () => {
     }
     
     try {
-      // Create task data object without undefined/optional fields
       const taskData = {
         title: newTask.title,
         description: newTask.description,
@@ -144,7 +136,6 @@ const Tasks = () => {
       
       if (error) throw error;
       
-      // Create a properly typed Task object with all required fields
       const addedTask: Task = {
         id: data[0].id,
         title: data[0].title,
@@ -153,7 +144,6 @@ const Tasks = () => {
         due_date: data[0].due_date,
         assigned_to: data[0].assigned_to,
         assigned_by: data[0].assigned_by,
-        // Add the priority from our newTask state, not from the database response
         priority: newTask.priority
       };
       
@@ -197,17 +187,17 @@ const Tasks = () => {
   
   const handlePriorityChange = async (taskId: string, newPriority: 'low' | 'medium' | 'high') => {
     try {
-      // Update locally regardless of database update success
       setTasks(tasks.map(task => 
         task.id === taskId ? { ...task, priority: newPriority } : task
       ));
       
-      // Attempt to update in DB if field exists - don't throw error if it fails
-      // as priority field might not exist in the database yet
       try {
+        const updateData = { status: undefined } as any;
+        updateData.priority = newPriority;
+        
         const { error } = await supabase
           .from('tasks')
-          .update({ priority: newPriority })
+          .update(updateData)
           .eq('id', taskId);
         
         if (error) {
@@ -222,7 +212,6 @@ const Tasks = () => {
     }
   };
   
-  // Check if user is admin or tutor to allow task creation
   const canCreateTasks = user?.role === 'admin' || user?.role === 'tutor';
   
   const TaskList = ({ status }: { status: 'todo' | 'in-progress' | 'completed' }) => {
