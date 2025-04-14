@@ -1,6 +1,5 @@
-
 import { useState } from 'react';
-import { CheckCircle2, Clock, PlusCircle, Search, Edit2, Trash2 } from 'lucide-react';
+import { CheckCircle2, Clock, PlusCircle, Search, Edit2, Trash2, Circle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import ModuleCard from '@/components/dashboard/ModuleCard';
-import { useDemoData } from '@/contexts/DemoDataContext';
+import { useDemoData, Module } from '@/contexts/DemoDataContext';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
 
@@ -36,7 +35,7 @@ const courseTypes = [
 ];
 
 const Roadmap = () => {
-  const { modules } = useDemoData();
+  const { modules, addModule, updateModule, deleteModule } = useDemoData();
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'in-progress' | 'completed'>('all');
@@ -46,7 +45,7 @@ const Roadmap = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [currentModule, setCurrentModule] = useState<any>(null);
+  const [currentModule, setCurrentModule] = useState<Module | null>(null);
   
   const [newModule, setNewModule] = useState({
     title: '',
@@ -85,7 +84,7 @@ const Roadmap = () => {
     const id = `module-${Date.now()}`;
     
     // Create a new module object
-    const module = {
+    const module: Module = {
       id,
       title: `${selectedCourseType}: ${newModule.title}`,
       description: newModule.description,
@@ -97,8 +96,7 @@ const Roadmap = () => {
     };
     
     // Add to demo data modules
-    // Note: In a real application, this would save to the database
-    useDemoData().addModule(module);
+    addModule(module);
     
     // Reset form and close dialog
     setNewModule({
@@ -120,8 +118,7 @@ const Roadmap = () => {
     }
     
     // Update the module
-    // Note: In a real application, this would update the database
-    useDemoData().updateModule(currentModule.id, currentModule);
+    updateModule(currentModule.id, currentModule);
     
     setIsEditDialogOpen(false);
     toast.success("Roadmap module updated successfully");
@@ -131,8 +128,7 @@ const Roadmap = () => {
     if (!currentModule) return;
     
     // Delete the module
-    // Note: In a real application, this would delete from the database
-    useDemoData().deleteModule(currentModule.id);
+    deleteModule(currentModule.id);
     
     setIsDeleteDialogOpen(false);
     setCurrentModule(null);
@@ -369,7 +365,7 @@ const Roadmap = () => {
                       {module.tasks && module.tasks.slice(0, 3).map((task, i) => (
                         <div key={i} className="flex items-start gap-2">
                           <div className="mt-0.5">
-                            {task.completed ? (
+                            {task.complete ? (
                               <CheckCircle2 className="h-4 w-4 text-green-600" />
                             ) : (
                               <Circle className="h-4 w-4 text-gray-400" />
@@ -377,7 +373,7 @@ const Roadmap = () => {
                           </div>
                           <div>
                             <p className={cn("text-sm", 
-                              task.completed && "line-through text-muted-foreground"
+                              task.complete && "line-through text-muted-foreground"
                             )}>
                               {task.title}
                             </p>

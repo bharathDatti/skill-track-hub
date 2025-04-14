@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
 // Demo users
 export const demoUsers = {
@@ -26,14 +26,35 @@ export const demoUsers = {
   },
 };
 
+// Define module interface
+export interface ModuleTask {
+  id: string;
+  title: string;
+  complete: boolean;
+  dueDate: string;
+}
+
+export interface Module {
+  id: string;
+  title: string;
+  description: string;
+  progress: number;
+  complete: boolean;
+  courseType?: string;
+  duration_weeks?: number;
+  tasks: ModuleTask[];
+}
+
 // Demo roadmap modules
-export const demoModules = [
+export const demoModules: Module[] = [
   {
     id: '1',
     title: 'Month 1: Web Fundamentals',
     description: 'HTML, CSS, JavaScript basics and core web concepts',
     progress: 100,
     complete: true,
+    courseType: 'Web Development',
+    duration_weeks: 4,
     tasks: [
       { id: '101', title: 'HTML Structure & Semantics', complete: true, dueDate: '2023-01-07' },
       { id: '102', title: 'CSS Layouts & Responsive Design', complete: true, dueDate: '2023-01-14' },
@@ -47,6 +68,8 @@ export const demoModules = [
     description: 'React component architecture, props, state, and hooks',
     progress: 75,
     complete: false,
+    courseType: 'Web Development',
+    duration_weeks: 4,
     tasks: [
       { id: '201', title: 'React Components & JSX', complete: true, dueDate: '2023-02-07' },
       { id: '202', title: 'Props & State Management', complete: true, dueDate: '2023-02-14' },
@@ -60,6 +83,8 @@ export const demoModules = [
     description: 'Building REST APIs with Express and Node.js',
     progress: 50,
     complete: false,
+    courseType: 'Web Development',
+    duration_weeks: 4,
     tasks: [
       { id: '301', title: 'Node.js Basics', complete: true, dueDate: '2023-03-07' },
       { id: '302', title: 'Express Framework', complete: true, dueDate: '2023-03-14' },
@@ -73,6 +98,8 @@ export const demoModules = [
     description: 'Database design, operations, and modeling with MongoDB',
     progress: 25,
     complete: false,
+    courseType: 'Web Development',
+    duration_weeks: 4,
     tasks: [
       { id: '401', title: 'MongoDB Introduction', complete: true, dueDate: '2023-04-07' },
       { id: '402', title: 'Mongoose Schema Design', complete: false, dueDate: '2023-04-14' },
@@ -86,6 +113,8 @@ export const demoModules = [
     description: 'Connecting frontend and backend, deployment strategies',
     progress: 0,
     complete: false,
+    courseType: 'Web Development',
+    duration_weeks: 4,
     tasks: [
       { id: '501', title: 'API Integration with React', complete: false, dueDate: '2023-05-07' },
       { id: '502', title: 'State Management with Context/Redux', complete: false, dueDate: '2023-05-14' },
@@ -99,6 +128,8 @@ export const demoModules = [
     description: 'Real-time features, testing, and final project',
     progress: 0,
     complete: false,
+    courseType: 'Web Development',
+    duration_weeks: 4,
     tasks: [
       { id: '601', title: 'WebSockets & Real-time Features', complete: false, dueDate: '2023-06-07' },
       { id: '602', title: 'Testing & Quality Assurance', complete: false, dueDate: '2023-06-14' },
@@ -136,8 +167,11 @@ export const demoAnnouncements = [
 // Create context
 interface DemoDataContextType {
   users: typeof demoUsers;
-  modules: typeof demoModules;
+  modules: Module[];
   announcements: typeof demoAnnouncements;
+  addModule: (module: Module) => void;
+  updateModule: (id: string, updatedModule: Partial<Module>) => void;
+  deleteModule: (id: string) => void;
 }
 
 const DemoDataContext = createContext<DemoDataContextType | null>(null);
@@ -145,12 +179,36 @@ const DemoDataContext = createContext<DemoDataContextType | null>(null);
 export const DemoDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   children 
 }) => {
+  const [modules, setModules] = useState<Module[]>(demoModules);
+  
+  // Add a new module
+  const addModule = (module: Module) => {
+    setModules(prevModules => [...prevModules, module]);
+  };
+  
+  // Update an existing module
+  const updateModule = (id: string, updatedModule: Partial<Module>) => {
+    setModules(prevModules => 
+      prevModules.map(module => 
+        module.id === id ? { ...module, ...updatedModule } : module
+      )
+    );
+  };
+  
+  // Delete a module
+  const deleteModule = (id: string) => {
+    setModules(prevModules => prevModules.filter(module => module.id !== id));
+  };
+  
   return (
     <DemoDataContext.Provider 
       value={{ 
         users: demoUsers, 
-        modules: demoModules, 
-        announcements: demoAnnouncements 
+        modules, 
+        announcements: demoAnnouncements,
+        addModule,
+        updateModule,
+        deleteModule
       }}
     >
       {children}
