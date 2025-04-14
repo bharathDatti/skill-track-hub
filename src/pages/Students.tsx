@@ -1,7 +1,7 @@
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuthStore } from '@/store/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,75 +16,124 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, MoreVertical } from 'lucide-react';
+import { Search, MoreVertical, Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from 'sonner';
 
 interface Student {
   id: string;
-  name: string;
-  email: string;
-  batch: string;
+  full_name: string | null;
+  email?: string;
+  batch_name?: string;
   status: 'active' | 'inactive' | 'pending';
   progress: number;
-  avatar?: string;
+  avatar_url: string | null;
+}
+
+interface BatchEnrollment {
+  id: string;
+  batch_id: string;
+  student_id: string;
+  status: string;
+  batch_name?: string;
 }
 
 const Students = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  
-  const { data: students, isLoading, isError } = useQuery({
-    queryKey: ['students'],
-    queryFn: async () => {
-      // In a real app, this would fetch data from your Supabase database
-      // For now, we're returning mock data
-      return [
-        {
-          id: '1',
-          name: 'Alex Johnson',
-          email: 'alex@example.com',
-          batch: 'Batch 3 - Frontend',
-          status: 'active',
-          progress: 75,
-          avatar: ''
-        },
-        {
-          id: '2',
-          name: 'Emma Williams',
-          email: 'emma@example.com',
-          batch: 'Batch 2 - Backend',
-          status: 'active',
-          progress: 60,
-          avatar: ''
-        },
-        {
-          id: '3',
-          name: 'Michael Brown',
-          email: 'michael@example.com',
-          batch: 'Batch 3 - Frontend',
-          status: 'inactive',
-          progress: 40,
-          avatar: ''
-        },
-        {
-          id: '4',
-          name: 'Olivia Davis',
-          email: 'olivia@example.com',
-          batch: 'Batch 1 - Full Stack',
-          status: 'pending',
-          progress: 0,
-          avatar: ''
+  const [students, setStudents] = useState<Student[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const { user: currentUser } = useAuthStore();
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const fetchStudents = async () => {
+    try {
+      setIsLoading(true);
+      setIsError(false);
+
+      // Get all profiles with 'student' role
+      const { data: studentProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, avatar_url, created_at')
+        .eq('role', 'student');
+
+      if (profilesError) throw profilesError;
+
+      // Get all enrollments
+      const { data: enrollments, error: enrollmentsError } = await supabase
+        .from('batch_enrollments')
+        .select('id, batch_id, student_id, status');
+
+      if (enrollmentsError) throw enrollmentsError;
+
+      // Get all batches for batch names
+      const { data: batches, error: batchesError } = await supabase
+        .from('batches')
+        .select('id, name');
+
+      if (batchesError) throw batchesError;
+
+      // Create a map of batch IDs to names
+      const batchMap = batches.reduce((acc: Record<string, string>, batch) => {
+        acc[batch.id] = batch.name;
+        return acc;
+      }, {});
+
+      // Enhance enrollments with batch names
+      const enhancedEnrollments = enrollments.map((enrollment: any) => ({
+        ...enrollment,
+        batch_name: batchMap[enrollment.batch_id] || 'Unknown Batch'
+      }));
+
+      // Group enrollments by student
+      const studentEnrollments = enhancedEnrollments.reduce((acc: Record<string, BatchEnrollment[]>, enrollment) => {
+        if (!acc[enrollment.student_id]) {
+          acc[enrollment.student_id] = [];
         }
-      ] as Student[];
+        acc[enrollment.student_id].push(enrollment);
+        return acc;
+      }, {});
+
+      // Format student data
+      const formattedStudents = studentProfiles.map((profile) => {
+        const studentEnrollment = studentEnrollments[profile.id]?.[0];
+        return {
+          id: profile.id,
+          full_name: profile.full_name,
+          // For demo purposes, create a dummy email
+          email: `student_${profile.id.substring(0, 8)}@example.com`,
+          batch_name: studentEnrollment?.batch_name || 'Not Enrolled',
+          // Determine status based on enrollment
+          status: studentEnrollment ? 
+            (studentEnrollment.status === 'approved' ? 'active' : 
+             studentEnrollment.status === 'pending' ? 'pending' : 'inactive') : 
+            'inactive',
+          // Random progress for demo
+          progress: Math.floor(Math.random() * 101),
+          avatar_url: profile.avatar_url
+        } as Student;
+      });
+
+      setStudents(formattedStudents);
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      setIsError(true);
+      toast.error('Failed to load students');
+    } finally {
+      setIsLoading(false);
     }
-  });
-  
-  const filteredStudents = students?.filter(student => {
+  };
+
+  const filteredStudents = students.filter(student => {
     // Filter by search query
     const matchesSearch = 
-      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.batch.toLowerCase().includes(searchQuery.toLowerCase());
+      student.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.batch_name?.toLowerCase().includes(searchQuery.toLowerCase());
     
     // Filter by status
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
@@ -107,6 +156,16 @@ const Students = () => {
     if (progress >= 25) return 'bg-yellow-500';
     return 'bg-red-500';
   };
+
+  // Redirect if not admin or tutor
+  if (currentUser?.role !== 'admin' && currentUser?.role !== 'tutor') {
+    return (
+      <div className="container py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+        <p>You don't have permission to view this page.</p>
+      </div>
+    );
+  }
   
   return (
     <div className="container py-8">
@@ -142,7 +201,9 @@ const Students = () => {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 text-center">Loading students...</div>
+            <div className="p-6 text-center flex justify-center items-center">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading students...
+            </div>
           ) : isError ? (
             <div className="p-6 text-center text-destructive">Error loading students</div>
           ) : (
@@ -169,16 +230,16 @@ const Students = () => {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar>
-                            <AvatarImage src={student.avatar} />
-                            <AvatarFallback>{student.name[0]}</AvatarFallback>
+                            <AvatarImage src={student.avatar_url || undefined} />
+                            <AvatarFallback>{student.full_name?.[0] || 'S'}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{student.name}</p>
+                            <p className="font-medium">{student.full_name || 'Unnamed Student'}</p>
                             <p className="text-sm text-muted-foreground">{student.email}</p>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{student.batch}</TableCell>
+                      <TableCell>{student.batch_name}</TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(student.status)}>
                           {student.status}
@@ -206,9 +267,9 @@ const Students = () => {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem>View Details</DropdownMenuItem>
-                            <DropdownMenuItem>Edit Student</DropdownMenuItem>
-                            <DropdownMenuItem>Send Message</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toast.info('View student details')}>View Details</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toast.info('Edit student details')}>Edit Student</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => toast.info('Send message to student')}>Send Message</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

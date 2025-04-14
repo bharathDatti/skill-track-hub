@@ -1,5 +1,7 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
-import { CalendarIcon, CheckCircle2, Circle, Clock, Plus } from 'lucide-react';
+import { CalendarIcon, CheckCircle2, Circle, Clock, Loader2, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Calendar } from "@/components/ui/calendar";
@@ -19,91 +21,176 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface Task {
   id: string;
   title: string;
-  description: string;
+  description: string | null;
   status: 'todo' | 'in-progress' | 'completed';
   priority: 'low' | 'medium' | 'high';
-  dueDate: Date | null;
-  assignedTo?: string;
+  due_date: string;
+  assigned_to?: string | null;
+  assigned_by?: string | null;
+}
+
+interface Profile {
+  id: string;
+  full_name: string | null;
 }
 
 const Tasks = () => {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: 'Review student submissions',
-      description: 'Grade the React project submissions for Batch 3',
-      status: 'todo',
-      priority: 'high',
-      dueDate: new Date(2025, 3, 20)
-    },
-    {
-      id: '2',
-      title: 'Prepare workshop materials',
-      description: 'Create slides and examples for the React hooks workshop',
-      status: 'in-progress',
-      priority: 'medium',
-      dueDate: new Date(2025, 3, 25)
-    },
-    {
-      id: '3',
-      title: 'Update curriculum',
-      description: 'Add TypeScript modules to the frontend curriculum',
-      status: 'completed',
-      priority: 'low',
-      dueDate: new Date(2025, 3, 15)
-    }
-  ]);
-
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newTask, setNewTask] = useState<Omit<Task, 'id'>>({
     title: '',
     description: '',
     status: 'todo',
     priority: 'medium',
-    dueDate: null
+    due_date: new Date().toISOString(),
+    assigned_to: null
   });
+  const { user } = useAuthStore();
+  
+  useEffect(() => {
+    if (user) {
+      fetchTasks();
+      fetchProfiles();
+    }
+  }, [user]);
+  
+  const fetchTasks = async () => {
+    try {
+      setIsLoading(true);
+      let query = supabase.from('tasks').select('*');
+      
+      // If user is a student, only fetch tasks assigned to them
+      if (user?.role === 'student') {
+        query = query.eq('assigned_to', user.id);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) throw error;
+      
+      // Convert types to match our interface
+      const formattedTasks = data.map(task => ({
+        ...task,
+        status: task.status as 'todo' | 'in-progress' | 'completed',
+        priority: task.priority || 'medium' as 'low' | 'medium' | 'high'
+      }));
+      
+      setTasks(formattedTasks);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      toast.error('Failed to load tasks');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const fetchProfiles = async () => {
+    try {
+      // Fetch profiles for assignment dropdown
+      if (user?.role === 'admin' || user?.role === 'tutor') {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('role', 'student');
+        
+        if (error) throw error;
+        setProfiles(data);
+      }
+    } catch (error) {
+      console.error('Error fetching profiles:', error);
+      toast.error('Failed to load student profiles');
+    }
+  };
   
   const getFilteredTasks = (status: 'todo' | 'in-progress' | 'completed') => {
     return tasks.filter(task => task.status === status);
   };
   
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (!newTask.title.trim()) {
       toast.error("Task title is required");
       return;
     }
     
-    const task: Task = {
-      ...newTask,
-      id: Date.now().toString()
-    };
-    
-    setTasks([...tasks, task]);
-    setIsAddDialogOpen(false);
-    setNewTask({
-      title: '',
-      description: '',
-      status: 'todo',
-      priority: 'medium',
-      dueDate: null
-    });
-    
-    toast.success("Task added successfully");
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([
+          {
+            title: newTask.title,
+            description: newTask.description,
+            status: newTask.status,
+            priority: newTask.priority,
+            due_date: newTask.due_date,
+            assigned_to: newTask.assigned_to,
+            assigned_by: user?.id
+          }
+        ])
+        .select();
+      
+      if (error) throw error;
+      
+      const addedTask = data[0] as Task;
+      setTasks([...tasks, addedTask]);
+      setIsAddDialogOpen(false);
+      setNewTask({
+        title: '',
+        description: '',
+        status: 'todo',
+        priority: 'medium',
+        due_date: new Date().toISOString(),
+        assigned_to: null
+      });
+      
+      toast.success("Task added successfully");
+    } catch (error) {
+      console.error('Error adding task:', error);
+      toast.error("Failed to add task");
+    }
   };
   
-  const handleStatusChange = (taskId: string, newStatus: 'todo' | 'in-progress' | 'completed') => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, status: newStatus } : task
-    ));
-    
-    toast.success("Task status updated");
+  const handleStatusChange = async (taskId: string, newStatus: 'todo' | 'in-progress' | 'completed') => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: newStatus })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+      
+      setTasks(tasks.map(task => 
+        task.id === taskId ? { ...task, status: newStatus } : task
+      ));
+      
+      toast.success("Task status updated");
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      toast.error("Failed to update task status");
+    }
   };
   
-  const handlePriorityChange = (taskId: string, newPriority: 'low' | 'medium' | 'high') => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, priority: newPriority } : task
-    ));
+  const handlePriorityChange = async (taskId: string, newPriority: 'low' | 'medium' | 'high') => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ priority: newPriority })
+        .eq('id', taskId);
+      
+      if (error) throw error;
+      
+      setTasks(tasks.map(task => 
+        task.id === taskId ? { ...task, priority: newPriority } : task
+      ));
+    } catch (error) {
+      console.error('Error updating task priority:', error);
+      toast.error("Failed to update task priority");
+    }
   };
+  
+  // Check if user is admin or tutor to allow task creation
+  const canCreateTasks = user?.role === 'admin' || user?.role === 'tutor';
   
   const TaskList = ({ status }: { status: 'todo' | 'in-progress' | 'completed' }) => {
     const filteredTasks = getFilteredTasks(status);
@@ -144,6 +231,7 @@ const Tasks = () => {
                 <Select 
                   value={task.priority} 
                   onValueChange={(value: 'low' | 'medium' | 'high') => handlePriorityChange(task.id, value)}
+                  disabled={user?.role === 'student'}
                 >
                   <SelectTrigger className="w-24 h-7">
                     <SelectValue placeholder="Priority" />
@@ -155,14 +243,12 @@ const Tasks = () => {
                   </SelectContent>
                 </Select>
               </CardHeader>
-              {task.dueDate && (
-                <CardFooter className="px-4 py-2 text-xs text-muted-foreground border-t">
-                  <div className="flex items-center">
-                    <CalendarIcon className="mr-1 h-3 w-3" />
-                    Due: {format(task.dueDate, 'PPP')}
-                  </div>
-                </CardFooter>
-              )}
+              <CardFooter className="px-4 py-2 text-xs text-muted-foreground border-t">
+                <div className="flex items-center">
+                  <CalendarIcon className="mr-1 h-3 w-3" />
+                  Due: {format(new Date(task.due_date), 'PPP')}
+                </div>
+              </CardFooter>
             </Card>
           ))
         )}
@@ -170,98 +256,143 @@ const Tasks = () => {
     );
   };
   
+  if (user?.role !== 'admin' && user?.role !== 'tutor' && user?.role !== 'student') {
+    return (
+      <div className="container py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+        <p>You don't have permission to view this page.</p>
+      </div>
+    );
+  }
+  
+  if (isLoading) {
+    return (
+      <div className="container py-8 flex justify-center">
+        <div className="flex items-center">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <span>Loading tasks...</span>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="container py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Tasks</h1>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Add Task
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Task</DialogTitle>
-              <DialogDescription>
-                Add a new task to your list
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  placeholder="Task title"
-                  value={newTask.title}
-                  onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Task description"
-                  value={newTask.description}
-                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+        {canCreateTasks && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" /> Add Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Task</DialogTitle>
+                <DialogDescription>
+                  Add a new task to your list
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="priority">Priority</Label>
-                  <Select
-                    value={newTask.priority}
-                    onValueChange={(value: 'low' | 'medium' | 'high') => 
-                      setNewTask({ ...newTask, priority: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select priority" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    id="title"
+                    placeholder="Task title"
+                    value={newTask.title}
+                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label>Due Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !newTask.dueDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {newTask.dueDate ? format(newTask.dueDate, 'PPP') : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={newTask.dueDate || undefined}
-                        onSelect={(date) => setNewTask({ ...newTask, dueDate: date })}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Task description"
+                    value={newTask.description || ''}
+                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                  />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="priority">Priority</Label>
+                    <Select
+                      value={newTask.priority}
+                      onValueChange={(value: 'low' | 'medium' | 'high') => 
+                        setNewTask({ ...newTask, priority: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select priority" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Due Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !newTask.due_date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {newTask.due_date ? format(new Date(newTask.due_date), 'PPP') : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={newTask.due_date ? new Date(newTask.due_date) : undefined}
+                          onSelect={(date) => setNewTask({ ...newTask, due_date: date ? date.toISOString() : new Date().toISOString() })}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                {(user?.role === 'admin' || user?.role === 'tutor') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="assignedTo">Assign To</Label>
+                    <Select
+                      value={newTask.assigned_to || ''}
+                      onValueChange={(value) => 
+                        setNewTask({ ...newTask, assigned_to: value !== '' ? value : null })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Assign to student" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Unassigned</SelectItem>
+                        {profiles.map(profile => (
+                          <SelectItem key={profile.id} value={profile.id}>
+                            {profile.full_name || `Student ${profile.id.substring(0, 4)}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddTask}>
-                Add Task
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddTask}>
+                  Add Task
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
       
       <Tabs defaultValue="todo" className="w-full">

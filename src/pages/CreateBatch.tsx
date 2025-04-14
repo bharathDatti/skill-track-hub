@@ -55,14 +55,12 @@ const CreateBatch = () => {
     try {
       setLoading(true);
       
-      // Create batch without explicitly setting created_by
-      // Let the database use the default value or set to NULL if UUID format is invalid
       const { error } = await supabase.from("batches").insert({
         name: data.name,
         description: data.description,
         start_date: data.start_date,
         end_date: data.end_date,
-        // Omit created_by field to avoid UUID format issues
+        created_by: user.id
       });
 
       if (error) {

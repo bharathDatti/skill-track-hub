@@ -1,7 +1,7 @@
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuthStore } from '@/store/authStore';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,56 +15,110 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Pencil, Loader2 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { UserRole } from '@/store/authStore';
+import { toast } from 'sonner';
 
 interface User {
   id: string;
-  name: string;
+  full_name: string | null;
   email: string;
-  role: 'admin' | 'tutor' | 'student';
-  avatar?: string;
+  role: UserRole;
+  avatar_url: string | null;
   created_at: string;
 }
 
 const Users = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const { data: users, isLoading, isError } = useQuery({
-    queryKey: ['users'],
-    queryFn: async () => {
-      // In a real app, this would fetch data from your Supabase database
-      // For now, we're returning mock data
-      return [
-        {
-          id: '1',
-          name: 'John Doe',
-          email: 'john@example.com',
-          role: 'admin',
-          avatar: 'https://github.com/shadcn.png',
-          created_at: '2023-01-15T00:00:00Z'
-        },
-        {
-          id: '2',
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          role: 'tutor',
-          avatar: '',
-          created_at: '2023-02-20T00:00:00Z'
-        },
-        {
-          id: '3',
-          name: 'Mike Johnson',
-          email: 'mike@example.com',
-          role: 'student',
-          avatar: '',
-          created_at: '2023-03-10T00:00:00Z'
-        }
-      ] as User[];
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const { user: currentUser } = useAuthStore();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editRole, setEditRole] = useState<UserRole | null>(null);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      setIsError(false);
+
+      // Get all profiles
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, role, avatar_url, created_at');
+
+      if (error) throw error;
+
+      // We need to fetch emails from auth users - in a real implementation
+      // this would happen on the server side with admin privileges
+      // For demo purposes, we'll use dummy emails
+      const usersWithEmails = data.map((profile) => ({
+        ...profile,
+        email: `user_${profile.id.substring(0, 8)}@example.com`,
+      }));
+
+      setUsers(usersWithEmails as User[]);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setIsError(true);
+      toast.error('Failed to load users');
+    } finally {
+      setIsLoading(false);
     }
-  });
-  
-  const filteredUsers = users?.filter(user => 
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  };
+
+  const updateUserRole = async () => {
+    if (!selectedUser || !editRole) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: editRole })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      setUsers(users.map(u => 
+        u.id === selectedUser.id ? { ...u, role: editRole } : u
+      ));
+      
+      toast.success('User role updated successfully');
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating user role:', error);
+      toast.error('Failed to update user role');
+    }
+  };
+
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setEditRole(user.role);
+    setIsDialogOpen(true);
+  };
+
+  const filteredUsers = users.filter(user => 
+    user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.role.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -77,6 +131,16 @@ const Users = () => {
       default: return 'outline';
     }
   };
+  
+  // Redirect if not admin
+  if (currentUser?.role !== 'admin') {
+    return (
+      <div className="container py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+        <p>You don't have permission to view this page.</p>
+      </div>
+    );
+  }
   
   return (
     <div className="container py-8">
@@ -92,7 +156,7 @@ const Users = () => {
               className="pl-8 w-[250px]"
             />
           </div>
-          <Button>
+          <Button onClick={() => toast.info('User creation would be handled via auth flow')}>
             <Plus className="mr-2 h-4 w-4" /> Add User
           </Button>
         </div>
@@ -104,7 +168,9 @@ const Users = () => {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 text-center">Loading users...</div>
+            <div className="p-6 text-center flex justify-center items-center">
+              <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading users...
+            </div>
           ) : isError ? (
             <div className="p-6 text-center text-destructive">Error loading users</div>
           ) : (
@@ -130,11 +196,11 @@ const Users = () => {
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <Avatar>
-                            <AvatarImage src={user.avatar} />
-                            <AvatarFallback>{user.name[0]}</AvatarFallback>
+                            <AvatarImage src={user.avatar_url || undefined} />
+                            <AvatarFallback>{user.full_name?.[0] || 'U'}</AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{user.name}</p>
+                            <p className="font-medium">{user.full_name || 'Unnamed User'}</p>
                             <p className="text-sm text-muted-foreground">{user.email}</p>
                           </div>
                         </div>
@@ -148,8 +214,12 @@ const Users = () => {
                         {new Date(user.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm">
-                          Edit
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => handleEditUser(user)}
+                        >
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -160,6 +230,44 @@ const Users = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user role and permissions
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid gap-2">
+              <label htmlFor="role" className="text-sm font-medium">
+                Role
+              </label>
+              <Select
+                value={editRole || undefined}
+                onValueChange={(value: UserRole) => setEditRole(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="tutor">Tutor</SelectItem>
+                  <SelectItem value="student">Student</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={updateUserRole}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

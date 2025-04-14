@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Loader2 } from "lucide-react";
 
 type EnrollmentWithDetails = {
   id: string;
@@ -21,13 +22,9 @@ type EnrollmentWithDetails = {
   student_id: string;
   status: "pending" | "approved" | "rejected";
   created_at: string;
-  profiles: {
-    full_name: string | null;
-    avatar_url: string | null;
-  } | null;
-  batches: {
-    name: string;
-  } | null;
+  student_name: string | null;
+  student_avatar: string | null;
+  batch_name: string | null;
 };
 
 const EnrollmentRequests = () => {
@@ -49,8 +46,8 @@ const EnrollmentRequests = () => {
     const fetchEnrollments = async () => {
       try {
         setLoading(true);
-        // Fix the query to use a proper join instead of trying to use a foreign key relationship
-        // Get all pending enrollments first
+        
+        // Get all pending enrollments
         const { data: enrollmentsData, error: enrollmentsError } = await supabase
           .from("batch_enrollments")
           .select("*")
@@ -59,33 +56,51 @@ const EnrollmentRequests = () => {
 
         if (enrollmentsError) throw enrollmentsError;
         
-        if (enrollmentsData) {
-          // Now fetch related data separately for profiles and batches
-          const enhancedEnrollments = await Promise.all(enrollmentsData.map(async (enrollment) => {
-            // Get student profile
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("full_name, avatar_url")
-              .eq("id", enrollment.student_id)
-              .single();
-            
-            // Get batch details
-            const { data: batchData } = await supabase
-              .from("batches")
-              .select("name")
-              .eq("id", enrollment.batch_id)
-              .single();
-            
-            return {
-              ...enrollment,
-              status: enrollment.status as "pending" | "approved" | "rejected",
-              profiles: profileData || null,
-              batches: batchData || null
-            };
-          }));
-          
-          setEnrollments(enhancedEnrollments);
+        if (!enrollmentsData || enrollmentsData.length === 0) {
+          setEnrollments([]);
+          return;
         }
+        
+        // Get all student profiles
+        const studentIds = enrollmentsData.map(e => e.student_id);
+        const { data: studentProfiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url")
+          .in("id", studentIds);
+          
+        if (profilesError) throw profilesError;
+        
+        // Create a map of student profiles by ID
+        const studentMap = studentProfiles.reduce((acc: Record<string, any>, profile) => {
+          acc[profile.id] = profile;
+          return acc;
+        }, {});
+        
+        // Get all batches
+        const batchIds = enrollmentsData.map(e => e.batch_id);
+        const { data: batchesData, error: batchesError } = await supabase
+          .from("batches")
+          .select("id, name")
+          .in("id", batchIds);
+          
+        if (batchesError) throw batchesError;
+        
+        // Create a map of batches by ID
+        const batchMap = batchesData.reduce((acc: Record<string, any>, batch) => {
+          acc[batch.id] = batch;
+          return acc;
+        }, {});
+        
+        // Combine all the data
+        const enhancedEnrollments = enrollmentsData.map(enrollment => ({
+          ...enrollment,
+          status: enrollment.status as "pending" | "approved" | "rejected",
+          student_name: studentMap[enrollment.student_id]?.full_name || null,
+          student_avatar: studentMap[enrollment.student_id]?.avatar_url || null,
+          batch_name: batchMap[enrollment.batch_id]?.name || null
+        }));
+        
+        setEnrollments(enhancedEnrollments);
       } catch (error) {
         console.error("Error fetching enrollment requests:", error);
         toast.error("Failed to load enrollment requests");
@@ -137,7 +152,10 @@ const EnrollmentRequests = () => {
 
       {loading ? (
         <div className="flex justify-center">
-          <p>Loading enrollment requests...</p>
+          <div className="flex items-center">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Loading enrollment requests...</span>
+          </div>
         </div>
       ) : enrollments.length === 0 ? (
         <div className="text-center p-10">
@@ -158,9 +176,9 @@ const EnrollmentRequests = () => {
               {enrollments.map((enrollment) => (
                 <TableRow key={enrollment.id}>
                   <TableCell>
-                    {enrollment.profiles?.full_name || "Unknown Student"}
+                    {enrollment.student_name || "Unknown Student"}
                   </TableCell>
-                  <TableCell>{enrollment.batches?.name || "Unknown Batch"}</TableCell>
+                  <TableCell>{enrollment.batch_name || "Unknown Batch"}</TableCell>
                   <TableCell>
                     {format(new Date(enrollment.created_at), "MMM d, yyyy")}
                   </TableCell>

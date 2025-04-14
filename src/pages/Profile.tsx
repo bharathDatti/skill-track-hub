@@ -7,19 +7,49 @@ import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from '@/integrations/supabase/client';
+import { Loader2 } from 'lucide-react';
 
 const Profile = () => {
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
+  const [profileData, setProfileData] = useState<any>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   
   useEffect(() => {
     if (user) {
       setName(user.name || '');
       setAvatar(user.avatar || '');
+      fetchProfileData();
     }
   }, [user]);
+  
+  const fetchProfileData = async () => {
+    if (!user) return;
+    
+    try {
+      setIsLoadingProfile(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+        
+      if (error) throw error;
+      
+      setProfileData(data);
+      
+      // Update local form state
+      setName(data.full_name || user.name || '');
+      setAvatar(data.avatar_url || user.avatar || '');
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      toast.error('Could not load profile data');
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
   
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,11 +64,12 @@ const Profile = () => {
           full_name: name,
           avatar_url: avatar
         })
-        .eq('user_id', user.id);
+        .eq('id', user.id);
         
       if (error) throw error;
       
-      // Update local user state (removed setUser as it's not available)
+      // Update local user state
+      setUser({ ...user, name, avatar });
       toast.success('Profile updated successfully');
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -47,6 +78,14 @@ const Profile = () => {
       setLoading(false);
     }
   };
+  
+  if (isLoadingProfile) {
+    return (
+      <div className="container py-8 flex justify-center items-center">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading profile...
+      </div>
+    );
+  }
   
   return (
     <div className="container py-8 max-w-2xl mx-auto">
