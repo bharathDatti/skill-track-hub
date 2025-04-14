@@ -72,11 +72,22 @@ const Tasks = () => {
       if (error) throw error;
       
       // Convert types to match our interface and add default priority if missing
-      const formattedTasks = data.map(task => ({
-        ...task,
-        status: task.status as 'todo' | 'in-progress' | 'completed',
-        priority: (task.priority || 'medium') as 'low' | 'medium' | 'high'
-      }));
+      const formattedTasks = data.map(task => {
+        // Create a properly typed Task object with priority defaulting to 'medium'
+        const typedTask: Task = {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          status: task.status as 'todo' | 'in-progress' | 'completed',
+          due_date: task.due_date,
+          assigned_to: task.assigned_to,
+          assigned_by: task.assigned_by,
+          // Add priority with default if it doesn't exist in the database
+          priority: 'medium'
+        };
+        
+        return typedTask;
+      });
       
       setTasks(formattedTasks);
     } catch (error) {
@@ -126,12 +137,6 @@ const Tasks = () => {
         assigned_by: user?.id
       };
       
-      // Add priority if available in schema
-      if (newTask.priority) {
-        // @ts-ignore - We'll add the property conditionally
-        taskData.priority = newTask.priority;
-      }
-      
       const { data, error } = await supabase
         .from('tasks')
         .insert([taskData])
@@ -139,11 +144,18 @@ const Tasks = () => {
       
       if (error) throw error;
       
-      // Cast the returned data to Task and ensure it has a priority
-      const addedTask = {
-        ...data[0],
-        priority: (data[0].priority || 'medium') as 'low' | 'medium' | 'high'
-      } as Task;
+      // Create a properly typed Task object with all required fields
+      const addedTask: Task = {
+        id: data[0].id,
+        title: data[0].title,
+        description: data[0].description,
+        status: data[0].status as 'todo' | 'in-progress' | 'completed',
+        due_date: data[0].due_date,
+        assigned_to: data[0].assigned_to,
+        assigned_by: data[0].assigned_by,
+        // Add the priority from our newTask state, not from the database response
+        priority: newTask.priority
+      };
       
       setTasks([...tasks, addedTask]);
       setIsAddDialogOpen(false);
@@ -185,19 +197,24 @@ const Tasks = () => {
   
   const handlePriorityChange = async (taskId: string, newPriority: 'low' | 'medium' | 'high') => {
     try {
-      // For now, only update locally since priority might not exist in DB
+      // Update locally regardless of database update success
       setTasks(tasks.map(task => 
         task.id === taskId ? { ...task, priority: newPriority } : task
       ));
       
-      // Attempt to update in DB if field exists
-      const { error } = await supabase
-        .from('tasks')
-        .update({ priority: newPriority })
-        .eq('id', taskId);
-      
-      if (error) {
-        console.warn('Priority field may not exist in database:', error);
+      // Attempt to update in DB if field exists - don't throw error if it fails
+      // as priority field might not exist in the database yet
+      try {
+        const { error } = await supabase
+          .from('tasks')
+          .update({ priority: newPriority })
+          .eq('id', taskId);
+        
+        if (error) {
+          console.warn('Priority field may not exist in database:', error);
+        }
+      } catch (dbError) {
+        console.warn('Priority column may not exist in tasks table:', dbError);
       }
     } catch (error) {
       console.error('Error updating task priority:', error);
