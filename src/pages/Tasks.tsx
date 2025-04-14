@@ -192,7 +192,7 @@ const Tasks = () => {
       ));
       
       try {
-        const updateData = { status: undefined } as any;
+        const updateData = {} as any;
         updateData.priority = newPriority;
         
         const { error } = await supabase
