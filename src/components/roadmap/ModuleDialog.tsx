@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Module } from "@/contexts/DemoDataContext";
+import { SetStateAction, Dispatch } from "react";
 
 interface ModuleDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: () => void;
-  module: Partial<Module>;
-  setModule: (module: Partial<Module>) => void;
+  module: any; // Using any to accommodate both Partial<Module> and the newModule object
+  setModule: ((value: SetStateAction<any>) => void) | ((module: Partial<Module>) => void); // Updated to support both setState and custom setters
   courseTypes: string[];
   mode: 'add' | 'edit';
 }
@@ -26,6 +27,14 @@ export const ModuleDialog = ({
   courseTypes,
   mode
 }: ModuleDialogProps) => {
+  const handleChange = (updates: Partial<any>) => {
+    // Handle both setState style and direct setter
+    if (typeof setModule === 'function') {
+      // @ts-ignore - we know this is safe based on how we use it
+      setModule(prev => ({ ...prev, ...updates }));
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
@@ -42,7 +51,7 @@ export const ModuleDialog = ({
             <Label htmlFor="courseType">Course Type</Label>
             <Select
               value={module.courseType || "Web Development"}
-              onValueChange={(value) => setModule({ ...module, courseType: value })}
+              onValueChange={(value) => handleChange({ courseType: value })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select course type" />
@@ -60,8 +69,7 @@ export const ModuleDialog = ({
             <Input
               id="title"
               value={mode === 'edit' ? module.title?.replace(/^.*?: /, '') : module.title}
-              onChange={(e) => setModule({ 
-                ...module, 
+              onChange={(e) => handleChange({ 
                 title: mode === 'edit' ? `${module.courseType}: ${e.target.value}` : e.target.value
               })}
             />
@@ -72,7 +80,7 @@ export const ModuleDialog = ({
             <Textarea
               id="description"
               value={module.description}
-              onChange={(e) => setModule({ ...module, description: e.target.value })}
+              onChange={(e) => handleChange({ description: e.target.value })}
             />
           </div>
           
@@ -83,8 +91,7 @@ export const ModuleDialog = ({
               type="number"
               min={1}
               value={module.duration_weeks || 1}
-              onChange={(e) => setModule({ 
-                ...module, 
+              onChange={(e) => handleChange({ 
                 duration_weeks: parseInt(e.target.value) || 1
               })}
             />

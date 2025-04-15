@@ -2,7 +2,7 @@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Circle, Edit2, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, Edit2, Trash2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Module } from "@/contexts/DemoDataContext";
 

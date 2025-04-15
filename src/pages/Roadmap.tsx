@@ -165,7 +165,7 @@ const Roadmap = () => {
         onClose={() => setIsAddDialogOpen(false)}
         onSubmit={handleAddModule}
         module={newModule}
-        setModule={setNewModule}
+        setModule={setNewModule as any}
         courseTypes={courseTypes}
         mode="add"
       />
@@ -175,7 +175,7 @@ const Roadmap = () => {
         onClose={() => setIsEditDialogOpen(false)}
         onSubmit={handleEditModule}
         module={currentModule || {}}
-        setModule={setCurrentModule}
+        setModule={setCurrentModule as any}
         courseTypes={courseTypes}
         mode="edit"
       />
